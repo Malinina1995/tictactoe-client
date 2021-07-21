@@ -1,16 +1,15 @@
 import React from 'react';
 import Swal from "sweetalert2";
-import {findWinner} from "./findWinner";
-import {findWinningPosition} from "./findWinningPosition";
-import {getRandomPosition} from "./getRandomPosition";
 import {Autorenew} from "@material-ui/icons";
 import {AppBar, IconButton, Toolbar, Typography} from "@material-ui/core";
 import {Board} from "./Board";
 import {GameSymbol} from "./GameSymbol";
 import {GameRole} from "./GameRole";
 import {GameSocket} from "./game-socket";
-import { GameType } from './GameType';
-import {GameResult} from "./GameResult";
+import {GameType} from './GameType';
+import {TicTacToeGame} from "./TicTacToeGame";
+import {TikTakToeServerGame} from "./TikTakToeServerGame";
+import {TikTakToeClientGame} from "./TikTakToeClientGame";
 
 type GameState = {
     squares: GameSymbol[];
@@ -18,110 +17,7 @@ type GameState = {
     history: string[];
     winUser: number;
     winComputer: number;
-}
-
-type FieldChangeHandler = (squares: GameSymbol[]) => void;
-type ResultHandler = (winner: GameResult) => void;
-
-interface TicTacToeGame {
-    setStep(index: number): void;
-    subscribeOnFieldChange(handler: FieldChangeHandler): void;
-    subscribeOnGameFinish(handler: (winner: GameResult) => void): void;
-}
-
-class TikTakToeServerGame implements TicTacToeGame {
-    constructor(private gameSocket: GameSocket) {
-        gameSocket.start();
-    }
-
-    setStep(index: number): void {
-
-    }
-
-    subscribeOnFieldChange(handler: (squares: GameSymbol[]) => void): void {
-
-    }
-
-    subscribeOnGameFinish(handler: (winner: GameResult) => void): void {
-    }
-}
-
-class TikTakToeClientGame implements TicTacToeGame {
-    private squares: GameSymbol[] = Array(9).fill(null);
-    private fieldChangeHandler?: FieldChangeHandler;
-    private resultHandler?: ResultHandler;
-
-    constructor(whoFirst: GameRole) {
-        if (whoFirst === 'computer') {
-            this.computerStep();
-        }
-    }
-
-    private computerStep(): void {
-        const squares = this.squares.slice();
-        const compWinningPosition = findWinningPosition("user", squares);
-        const userWinningPosition = findWinningPosition("computer", squares);
-
-        let position;
-        if (compWinningPosition === -1 && userWinningPosition === -1) {
-            position = getRandomPosition(squares);
-        } else if (userWinningPosition !== -1) {
-            position = userWinningPosition;
-        } else {
-            position = compWinningPosition;
-        }
-        squares[position] = "O";
-        this.squares = squares;
-        this.notifyFieldChange();
-
-        this.checkWinner();
-    }
-
-    setStep(index: number): void {
-        const squares = this.squares.slice();
-        const winner = this.checkWinner();
-        if (winner || squares[index]) {
-            return;
-        }
-        squares[index] = "X";
-        this.squares = squares;
-        this.notifyFieldChange();
-
-        this.checkWinner();
-    }
-
-    private checkWinner(): GameSymbol {
-        return findWinner(this.squares, (win) => {
-            switch (win) {
-                case "X":
-                    this.notifyResult('user_1');
-                    break;
-                case "O":
-                    this.notifyResult('user_2');
-                    break;
-                default:
-                    this.notifyResult('standoff');
-                    break;
-            }
-        });
-    }
-
-    private notifyFieldChange(): void {
-        this.fieldChangeHandler && this.fieldChangeHandler(this.squares);
-    }
-
-    private notifyResult(winner: GameResult): void {
-        this.resultHandler && this.resultHandler(winner);
-    }
-
-    subscribeOnFieldChange(handler: FieldChangeHandler): void {
-        this.fieldChangeHandler = handler;
-        this.notifyFieldChange();
-    }
-
-    subscribeOnGameFinish(handler: ResultHandler): void {
-        this.resultHandler = handler;
-    }
+    game?: TicTacToeGame
 }
 
 export class Game extends React.Component<unknown, GameState> {
@@ -144,6 +40,7 @@ export class Game extends React.Component<unknown, GameState> {
     }
 
     startNewGameHandler = async () => {
+        let game: TicTacToeGame;
         //this.checkWinner();
         this.setState({
             play: "Play № " + Math.round(Math.random() * 1000),
@@ -154,19 +51,43 @@ export class Game extends React.Component<unknown, GameState> {
             localGame: "Локальная игра"
         }, 'Выберите тип игры:');
         if (type === "networkGame") {
-            new TikTakToeServerGame(new GameSocket());
+            game = new TikTakToeServerGame(new GameSocket());
         } else {
+
             const role = await this.alertSelectWindow<GameRole>({
                 computer: 'Компьютер',
                 user: 'Пользователь'
             }, 'Кто будет ходить первый?');
-            if (role === "computer") {
-                this.computerStep(this.state);
+            if (!role) {
+                return;
             }
+
+            game = new TikTakToeClientGame(role);
         }
+        game.subscribeOnFieldChange((squares): void => {
+            this.setState({
+                squares
+            });
+        });
+        game.subscribeOnGameFinish((result): void => {
+            switch (result) {
+                case "user_1":
+                    this.refreshHistory("X");
+                    break;
+                case "user_2":
+                    this.refreshHistory("O");
+                    break;
+                case "standoff":
+                    this.refreshHistory(null);
+                    break;
+            }
+        });
+        this.setState({
+            game
+        }, () => game.start());
     };
 
-    async alertSelectWindow<T>(resolvedParams: unknown, text: string): Promise<T|null> {
+    async alertSelectWindow<T>(resolvedParams: unknown, text: string): Promise<T | null> {
         const inputOptions = new Promise(resolve => {
             setTimeout(() => {
                 resolve(resolvedParams);
@@ -192,52 +113,8 @@ export class Game extends React.Component<unknown, GameState> {
         return type;
     }
 
-    computerStep(state: GameState): void {
-        const squares = state.squares.slice();
-        const compWinningPosition = findWinningPosition("user", squares);
-        const userWinningPosition = findWinningPosition("computer", squares);
-
-        let position;
-        if (compWinningPosition === -1 && userWinningPosition === -1) {
-            position = getRandomPosition(squares);
-        } else if (userWinningPosition !== -1) {
-            position = userWinningPosition;
-        } else {
-            position = compWinningPosition;
-        }
-
-        squares[position] = "O";
-
-        this.setState({
-            squares: squares
-        }, () => this.checkWinner());
-    }
-
     handleClick(i: number): void {
-        const squares = this.state.squares.slice();
-        const winner = this.checkWinner();
-        if (winner || squares[i]) {
-            return;
-        }
-        squares[i] = "X";
-        this.setState(
-            {
-                squares: squares
-            },
-            () => {
-                if (!this.checkWinner() && this.stepExists()) {
-                    this.computerStep(this.state);
-                }
-            }
-        );
-    }
-
-    checkWinner() {
-        return findWinner(this.state.squares, (win) => this.refreshHistory(win));
-    }
-
-    stepExists(): boolean {
-        return this.state.squares.some(v => !v);
+        this.state.game?.setStep(i);
     }
 
     refreshHistory(winner: GameSymbol): void {
