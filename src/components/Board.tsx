@@ -1,9 +1,14 @@
 import React, { Component } from "react";
 import { Square } from "./Square";
+import {GameSymbol} from "./GameSymbol";
 
+type BoardProps = {
+    squares: Array<GameSymbol>;
+    onClick: (i: number) => void;
+}
 
-export class Board extends Component {
-  renderSquare(i) {
+export class Board extends Component<BoardProps> {
+  renderSquare(i: number) {
     return (
       <Square
         value={this.props.squares[i]}

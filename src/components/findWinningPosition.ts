@@ -1,4 +1,7 @@
-export function findWinningPosition(role, squares) {
+import {GameSymbol} from "./GameSymbol";
+import {GameRole} from "./GameRole";
+
+export function findWinningPosition(role: GameRole, squares: GameSymbol[]): number {
   const winningPosition = [
     [0,1,2],
     [1,2,0],
