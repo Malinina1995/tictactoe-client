@@ -53,3 +53,7 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+
+.countMargin {
+  margin-left: 10px;
+}

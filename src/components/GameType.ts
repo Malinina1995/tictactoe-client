@@ -1,1 +1,1 @@
-export type GameType = 'networkGame' | 'localGame';
+export type GameType = 'networkGame' | 'localGame' | null;

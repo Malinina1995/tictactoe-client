@@ -17,6 +17,7 @@ type GameState = {
     history: string[];
     winUser: number;
     winComputer: number;
+    type?: GameType;
     game?: TicTacToeGame
 }
 
@@ -83,7 +84,8 @@ export class Game extends React.Component<unknown, GameState> {
             }
         });
         this.setState({
-            game
+            game,
+            type
         }, () => game.start());
     };
 
@@ -120,7 +122,10 @@ export class Game extends React.Component<unknown, GameState> {
     refreshHistory(winner: GameSymbol): void {
         let allHistory = this.state.history.slice();
         if (winner) {
-            const whoIsWinner: GameRole = winner === 'X' ? 'user' : 'computer';
+            let whoIsWinner = winner === 'X' ? 'user' : 'computer';
+            if (this.state.type === 'networkGame') {
+                whoIsWinner = winner === 'X' ? 'user_1' : 'user_2';
+            }
             allHistory.unshift(this.state.play + " winner: " + whoIsWinner);
             if (winner === "X") {
                 this.setState({
@@ -159,7 +164,14 @@ export class Game extends React.Component<unknown, GameState> {
                 </AppBar>
                 <div className='fontStyle'>
                     <h1>Итоговый счет</h1>
-                    <div className='countStyle'>User: {this.state.winUser} Computer:{this.state.winComputer}</div>
+                    {
+                        this.state.type &&
+                        <div className='countStyle'>
+                        {this.state.type === 'networkGame' ? 'User 1' : 'User'}: {this.state.winUser}
+                        <span
+                            className='countMargin'>{this.state.type === 'networkGame' ? 'User 2' : 'Computer'}: {this.state.winComputer}</span>
+                        </div>
+                    }
                 </div>
                 <Board
                     squares={this.state.squares}
