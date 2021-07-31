@@ -13,20 +13,21 @@ import {TikTakToeClientGame} from "./TikTakToeClientGame";
 
 type GameState = {
     squares: GameSymbol[];
-    play: string;
     history: string[];
     winUser: number;
     winComputer: number;
     type?: GameType;
-    game?: TicTacToeGame
+    game?: TicTacToeGame;
+    gameWasFinish?: boolean;
 }
+
+const serverGame = new TikTakToeServerGame(new GameSocket());
 
 export class Game extends React.Component<unknown, GameState> {
     constructor(props: unknown) {
         super(props);
         this.state = {
             squares: Array(9).fill(null),
-            play: "",
             history: [],
             winUser: 0,
             winComputer: 0,
@@ -34,9 +35,6 @@ export class Game extends React.Component<unknown, GameState> {
     }
 
     componentDidMount() {
-        this.setState({
-            play: "play #" + Math.round(Math.random() * 1000)
-        });
         this.startNewGameHandler();
     }
 
@@ -44,7 +42,6 @@ export class Game extends React.Component<unknown, GameState> {
         let game: TicTacToeGame;
         //this.checkWinner();
         this.setState({
-            play: "Play № " + Math.round(Math.random() * 1000),
             squares: Array(9).fill(null)
         });
         const type = await this.alertSelectWindow<GameType>({
@@ -52,9 +49,8 @@ export class Game extends React.Component<unknown, GameState> {
             localGame: "Локальная игра"
         }, 'Выберите тип игры:');
         if (type === "networkGame") {
-            game = new TikTakToeServerGame(new GameSocket());
+            game = serverGame;
         } else {
-
             const role = await this.alertSelectWindow<GameRole>({
                 computer: 'Компьютер',
                 user: 'Пользователь'
@@ -85,8 +81,12 @@ export class Game extends React.Component<unknown, GameState> {
         });
         this.setState({
             game,
-            type
-        }, () => game.start());
+            type,
+            winComputer: this.state.type !== type ? 0 : this.state.winComputer,
+            winUser:  this.state.type !== type ? 0 : this.state.winUser,
+            history: this.state.type !== type ? [] : this.state.history,
+            gameWasFinish: false
+        }, () => game.start())
     };
 
     async alertSelectWindow<T>(resolvedParams: unknown, text: string): Promise<T | null> {
@@ -116,7 +116,9 @@ export class Game extends React.Component<unknown, GameState> {
     }
 
     handleClick(i: number): void {
-        this.state.game?.setStep(i);
+        if (!this.state.gameWasFinish) {
+            this.state.game?.setStep(i);
+        }
     }
 
     refreshHistory(winner: GameSymbol): void {
@@ -126,7 +128,7 @@ export class Game extends React.Component<unknown, GameState> {
             if (this.state.type === 'networkGame') {
                 whoIsWinner = winner === 'X' ? 'user_1' : 'user_2';
             }
-            allHistory.unshift(this.state.play + " winner: " + whoIsWinner);
+            allHistory.unshift("Winner: " + whoIsWinner);
             if (winner === "X") {
                 this.setState({
                     winUser: this.state.winUser + 1
@@ -137,12 +139,14 @@ export class Game extends React.Component<unknown, GameState> {
                 });
             }
             this.setState({
-                history: allHistory
+                history: allHistory,
+                gameWasFinish: true
             });
         } else {
             allHistory.unshift('standoff');
             this.setState({
-                history: allHistory
+                history: allHistory,
+                gameWasFinish: true
             });
         }
     }
@@ -154,7 +158,7 @@ export class Game extends React.Component<unknown, GameState> {
                     <Toolbar className='flexToolbar'>
                         <div className="flexToolbar-wrapper">
                             <Typography variant="h6">
-                                {this.state.play}
+                                TicTacToe
                             </Typography>
                             <IconButton onClick={this.startNewGameHandler}>
                                 <Autorenew className='buttonStyle'/>

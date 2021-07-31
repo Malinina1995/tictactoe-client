@@ -1,7 +1,7 @@
 import {GameSymbol} from "./GameSymbol";
 
 export function getRandomPosition(squares: GameSymbol[]): number {
-  if (!squares.some(v => !v))
+  if (squares.every(v => v))
     throw new Error('No way');
 
   let maxIter = 10_000;
