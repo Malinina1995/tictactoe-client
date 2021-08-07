@@ -19,9 +19,13 @@ type GameState = {
     type?: GameType;
     game?: TicTacToeGame;
     gameWasFinish?: boolean;
+    gameCode?: number;
+    error?: string;
+    creator?: boolean;
 }
 
-const serverGame = new TikTakToeServerGame(new GameSocket());
+const gameSocket = new GameSocket('ws://192.168.10.18:3001');
+const serverGame = new TikTakToeServerGame(gameSocket);
 
 export class Game extends React.Component<unknown, GameState> {
     constructor(props: unknown) {
@@ -35,6 +39,28 @@ export class Game extends React.Component<unknown, GameState> {
     }
 
     componentDidMount() {
+        gameSocket.subscribeOnSetCode((code: number) => {
+            if (this.state.creator) {
+                this.setState({
+                    gameCode: code
+                });
+                Swal.fire(`Код для входа ${this.state.gameCode}, назовите его вашему сопернику`);
+            }
+        });
+        gameSocket.subscribeOnError((error: string) => {
+            if (this.state.creator === false) {
+                this.setState({
+                    error
+                });
+                Swal.fire({
+                    icon: 'error',
+                    title: error,
+                    confirmButtonText: 'Ok'
+                }).then(() => {
+                    this.startNewGameHandler();
+                });
+            }
+        });
         this.startNewGameHandler();
     }
 
@@ -42,7 +68,9 @@ export class Game extends React.Component<unknown, GameState> {
         let game: TicTacToeGame;
         //this.checkWinner();
         this.setState({
-            squares: Array(9).fill(null)
+            squares: Array(9).fill(null),
+            error: '',
+            creator: undefined
         });
         const type = await this.alertSelectWindow<GameType>({
             networkGame: "Сетевая игра",
@@ -50,6 +78,31 @@ export class Game extends React.Component<unknown, GameState> {
         }, 'Выберите тип игры:');
         if (type === "networkGame") {
             game = serverGame;
+            const hasCode = await this.alertSelectWindow<string>({
+                join: 'Присоединиться',
+                create: 'Создать комнату'
+            }, 'Вы хотите хотите присоединиться к игроку или создать новую комнату?');
+            if (hasCode === 'join') {
+                const { value: code } = await Swal.fire({
+                    title: 'Введите код для входа в игровую комнату',
+                    input: 'number',
+                    showCancelButton: false,
+                    inputValidator: (value): any => {
+                        if (!value) {
+                            return 'Введите код!'
+                        }
+                    }
+                });
+                this.setState({
+                    creator: false
+                });
+                gameSocket.getCode(code);
+            } else {
+                this.setState({
+                    creator: true
+                });
+                gameSocket.createRoom();
+            }
         } else {
             const role = await this.alertSelectWindow<GameRole>({
                 computer: 'Компьютер',
@@ -79,14 +132,17 @@ export class Game extends React.Component<unknown, GameState> {
                     break;
             }
         });
-        this.setState({
-            game,
-            type,
-            winComputer: this.state.type !== type ? 0 : this.state.winComputer,
-            winUser:  this.state.type !== type ? 0 : this.state.winUser,
-            history: this.state.type !== type ? [] : this.state.history,
-            gameWasFinish: false
-        }, () => game.start())
+        if (!this.state.error) {
+            this.setState({
+                game,
+                type,
+                winComputer: this.state.type !== type ? 0 : this.state.winComputer,
+                winUser:  this.state.type !== type ? 0 : this.state.winUser,
+                history: this.state.type !== type ? [] : this.state.history,
+                gameWasFinish: false,
+                error: ''
+            }, () => game.start())
+        }
     };
 
     async alertSelectWindow<T>(resolvedParams: unknown, text: string): Promise<T | null> {
@@ -126,7 +182,7 @@ export class Game extends React.Component<unknown, GameState> {
         if (winner) {
             let whoIsWinner = winner === 'X' ? 'user' : 'computer';
             if (this.state.type === 'networkGame') {
-                whoIsWinner = winner === 'X' ? 'user_1' : 'user_2';
+                whoIsWinner = winner === 'X' ? 'X' : 'O';
             }
             allHistory.unshift("Winner: " + whoIsWinner);
             if (winner === "X") {
