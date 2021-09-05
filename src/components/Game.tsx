@@ -72,10 +72,7 @@ export class Game extends React.Component<unknown, GameState> {
             error: '',
             creator: undefined
         });
-        const type = await this.alertSelectWindow<GameType>({
-            networkGame: "Сетевая игра",
-            localGame: "Локальная игра"
-        }, 'Выберите тип игры:');
+        const type = await this.getGameType();
         if (type === "networkGame") {
             game = serverGame;
             const hasCode = await this.alertSelectWindow<string>({
@@ -83,7 +80,7 @@ export class Game extends React.Component<unknown, GameState> {
                 create: 'Создать комнату'
             }, 'Вы хотите хотите присоединиться к игроку или создать новую комнату?');
             if (hasCode === 'join') {
-                const { value: code } = await Swal.fire({
+                const {value: code} = await Swal.fire({
                     title: 'Введите код для входа в игровую комнату',
                     input: 'number',
                     showCancelButton: false,
@@ -137,13 +134,20 @@ export class Game extends React.Component<unknown, GameState> {
                 game,
                 type,
                 winComputer: this.state.type !== type ? 0 : this.state.winComputer,
-                winUser:  this.state.type !== type ? 0 : this.state.winUser,
+                winUser: this.state.type !== type ? 0 : this.state.winUser,
                 history: this.state.type !== type ? [] : this.state.history,
                 gameWasFinish: false,
                 error: ''
             }, () => game.start())
         }
     };
+
+    getGameType(): Promise<GameType> {
+        return this.alertSelectWindow<GameType>({
+            networkGame: "Сетевая игра",
+            localGame: "Локальная игра"
+        }, 'Выберите тип игры:')
+    }
 
     async alertSelectWindow<T>(resolvedParams: unknown, text: string): Promise<T | null> {
         const inputOptions = new Promise(resolve => {
@@ -227,9 +231,9 @@ export class Game extends React.Component<unknown, GameState> {
                     {
                         this.state.type &&
                         <div className='countStyle'>
-                        {this.state.type === 'networkGame' ? 'User 1' : 'User'}: {this.state.winUser}
-                        <span
-                            className='countMargin'>{this.state.type === 'networkGame' ? 'User 2' : 'Computer'}: {this.state.winComputer}</span>
+                            {this.state.type === 'networkGame' ? 'User 1' : 'User'}: {this.state.winUser}
+                            <span
+                                className='countMargin'>{this.state.type === 'networkGame' ? 'User 2' : 'Computer'}: {this.state.winComputer}</span>
                         </div>
                     }
                 </div>
